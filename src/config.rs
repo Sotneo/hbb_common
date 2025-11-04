@@ -56,13 +56,48 @@ lazy_static::lazy_static! {
     static ref STATUS: RwLock<Status> = RwLock::new(Status::load());
     static ref TRUSTED_DEVICES: RwLock<(Vec<TrustedDevice>, bool)> = Default::default();
     static ref ONLINE: Mutex<HashMap<String, i64>> = Default::default();
+    static ref BUILTIN_RENDEZVOUS_SERVERS: Vec<String> =
+        env_or_list("RS_RENDEZVOUS_SERVERS", DEFAULT_RENDEZVOUS_SERVERS);
+    static ref BUILTIN_RS_PUB_KEY: String = env_or("RS_PUB_KEY", DEFAULT_RS_PUB_KEY);
+    static ref BUILTIN_RELAY_SERVER: String = env_or("RS_RELAY_SERVER", DEFAULT_RELAY_SERVER);
+    static ref BUILTIN_API_SERVER: String = env_or("RS_API_SERVER", DEFAULT_API_SERVER);
+    static ref BUILTIN_CUSTOM_RENDEZVOUS_SERVER: String = env_or(
+        "RS_RENDEZVOUS_SERVER",
+        BUILTIN_RENDEZVOUS_SERVERS
+            .first()
+            .map(|value| value.as_str())
+            .unwrap_or("")
+    );
     pub static ref PROD_RENDEZVOUS_SERVER: RwLock<String> = RwLock::new("".to_owned());
     pub static ref EXE_RENDEZVOUS_SERVER: RwLock<String> = Default::default();
     pub static ref APP_NAME: RwLock<String> = RwLock::new("RustDesk".to_owned());
     static ref KEY_PAIR: Mutex<Option<KeyPair>> = Default::default();
     static ref USER_DEFAULT_CONFIG: RwLock<(UserDefaultConfig, Instant)> = RwLock::new((UserDefaultConfig::load(), Instant::now()));
     pub static ref NEW_STORED_PEER_CONFIG: Mutex<HashSet<String>> = Default::default();
-    pub static ref DEFAULT_SETTINGS: RwLock<HashMap<String, String>> = Default::default();
+    pub static ref DEFAULT_SETTINGS: RwLock<HashMap<String, String>> = {
+        let mut m = HashMap::new();
+        m.insert(
+            keys::OPTION_RELAY_SERVER.to_string(),
+            BUILTIN_RELAY_SERVER.clone(),
+        );
+        m.insert(
+            keys::OPTION_CUSTOM_RENDEZVOUS_SERVER.to_string(),
+            BUILTIN_CUSTOM_RENDEZVOUS_SERVER.clone(),
+        );
+        m.insert(
+            keys::OPTION_API_SERVER.to_string(),
+            BUILTIN_API_SERVER.clone(),
+        );
+        m.insert(
+            keys::OPTION_KEY.to_string(),
+            BUILTIN_RS_PUB_KEY.clone(),
+        );
+        m.insert(
+            keys::OPTION_ALLOW_WEBSOCKET.to_string(),
+            "Y".to_string(),
+        );
+        RwLock::new(m)
+    };
     pub static ref OVERWRITE_SETTINGS: RwLock<HashMap<String, String>> = Default::default();
     pub static ref DEFAULT_DISPLAY_SETTINGS: RwLock<HashMap<String, String>> = Default::default();
     pub static ref OVERWRITE_DISPLAY_SETTINGS: RwLock<HashMap<String, String>> = Default::default();
@@ -70,6 +105,26 @@ lazy_static::lazy_static! {
     pub static ref OVERWRITE_LOCAL_SETTINGS: RwLock<HashMap<String, String>> = Default::default();
     pub static ref HARD_SETTINGS: RwLock<HashMap<String, String>> = Default::default();
     pub static ref BUILTIN_SETTINGS: RwLock<HashMap<String, String>> = Default::default();
+}
+
+pub fn builtin_rendezvous_servers() -> Vec<String> {
+    BUILTIN_RENDEZVOUS_SERVERS.clone()
+}
+
+pub fn builtin_relay_server() -> String {
+    BUILTIN_RELAY_SERVER.clone()
+}
+
+pub fn builtin_api_server() -> String {
+    BUILTIN_API_SERVER.clone()
+}
+
+pub fn builtin_custom_rendezvous_server() -> String {
+    BUILTIN_CUSTOM_RENDEZVOUS_SERVER.clone()
+}
+
+pub fn builtin_rs_pub_key() -> String {
+    BUILTIN_RS_PUB_KEY.clone()
 }
 
 #[cfg(target_os = "android")]
@@ -106,8 +161,40 @@ const CHARS: &[char] = &[
     'm', 'n', 'p', 'q', 'r', 's', 't', 'u', 'v', 'w', 'x', 'y', 'z',
 ];
 
-pub const RENDEZVOUS_SERVERS: &[&str] = &["rs-ny.rustdesk.com"];
-pub const RS_PUB_KEY: &str = "OeVuKk5nlHiXp+APNn0Y3pC1Iwpwn44JGqrQCsWqmBw=";
+const DEFAULT_RENDEZVOUS_SERVERS: &str = "rs-ny.rustdesk.com,rs-sg.rustdesk.com";
+const DEFAULT_RELAY_SERVER: &str = "public.relay.rustdesk.com";
+const DEFAULT_API_SERVER: &str = "";
+const DEFAULT_RS_PUB_KEY: &str = "OeVuKk5nlHiXp+APNn0Y3pC1Iwpwn44JGqrQCsWqmBw=";
+
+fn read_env(key: &str) -> Option<String> {
+    std::env::var(key)
+        .ok()
+        .map(|value| value.trim().to_string())
+        .filter(|value| !value.is_empty())
+}
+
+fn env_or(key: &str, fallback: &str) -> String {
+    read_env(key).unwrap_or_else(|| fallback.to_string())
+}
+
+fn env_or_list(key: &str, fallback: &str) -> Vec<String> {
+    read_env(key)
+        .map(|value| {
+            value
+                .split(',')
+                .map(|item| item.trim().to_string())
+                .filter(|item| !item.is_empty())
+                .collect::<Vec<String>>()
+        })
+        .filter(|values| !values.is_empty())
+        .unwrap_or_else(|| {
+            fallback
+                .split(',')
+                .map(|item| item.trim().to_string())
+                .filter(|item| !item.is_empty())
+                .collect::<Vec<String>>()
+        })
+}
 
 pub const RENDEZVOUS_PORT: i32 = 21116;
 pub const RELAY_PORT: i32 = 21117;
@@ -788,7 +875,7 @@ impl Config {
                 return ss;
             }
         }
-        return RENDEZVOUS_SERVERS.iter().map(|x| x.to_string()).collect();
+        builtin_rendezvous_servers()
     }
 
     pub fn reset_online() {
