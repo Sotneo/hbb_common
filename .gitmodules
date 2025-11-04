@@ -1,0 +1,3 @@
+[submodule "libs/hbb_common"]
+	url = https://github.com/Sotneo/hbb_common.git
+	branch = feature/env-default-settings
