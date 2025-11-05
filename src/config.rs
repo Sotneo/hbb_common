@@ -161,10 +161,25 @@ const CHARS: &[char] = &[
     'm', 'n', 'p', 'q', 'r', 's', 't', 'u', 'v', 'w', 'x', 'y', 'z',
 ];
 
-const DEFAULT_RENDEZVOUS_SERVERS: &str = "rs-ny.rustdesk.com,rs-sg.rustdesk.com";
-const DEFAULT_RELAY_SERVER: &str = "public.relay.rustdesk.com";
-const DEFAULT_API_SERVER: &str = "";
-const DEFAULT_RS_PUB_KEY: &str = "OeVuKk5nlHiXp+APNn0Y3pC1Iwpwn44JGqrQCsWqmBw=";
+const DEFAULT_RENDEZVOUS_SERVERS: &str = match option_env!("RS_RENDEZVOUS_SERVERS") {
+    Some(value) if !value.is_empty() => value,
+    _ => match option_env!("RS_RENDEZVOUS_SERVER") {
+        Some(value) if !value.is_empty() => value,
+        _ => "rs-ny.rustdesk.com,rs-sg.rustdesk.com",
+    },
+};
+const DEFAULT_RELAY_SERVER: &str = match option_env!("RS_RELAY_SERVER") {
+    Some(value) if !value.is_empty() => value,
+    _ => "public.relay.rustdesk.com",
+};
+const DEFAULT_API_SERVER: &str = match option_env!("RS_API_SERVER") {
+    Some(value) => value,
+    _ => "",
+};
+const DEFAULT_RS_PUB_KEY: &str = match option_env!("RS_PUB_KEY") {
+    Some(value) if !value.is_empty() => value,
+    _ => "OeVuKk5nlHiXp+APNn0Y3pC1Iwpwn44JGqrQCsWqmBw=",
+};
 
 fn read_env(key: &str) -> Option<String> {
     std::env::var(key)
